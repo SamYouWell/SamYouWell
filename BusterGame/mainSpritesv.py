@@ -7,6 +7,7 @@ from pygame import mixer
 #This implemtation utilizes pygame's sprites feature, which all me to add different game features more easily.
 #The TO-DO list is below the following code.
 
+
 pygame.init()
 clock = pygame.time.Clock()
 
@@ -34,8 +35,6 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         #self.rocket_shot = pygame.mixer.sound("BusterGame\lazer.wav")
     def fire(self):
         #self.rocket_shot.play()
-
-
         pass
     def moveRight(self,x_delta):
         self.rect.x += x_delta
@@ -55,7 +54,8 @@ class Bullet(Player):
         self.y_delta = rocket_speed
 
     def launch(self):
-        self.rect.y -= self.y_delta
+        if self.rect.y == 449:
+            self.rect.y -= self.y_delta
 
     def update(self):
         if self.rect.x <= 17:    #How does one write this via inheritance?
@@ -65,6 +65,9 @@ class Bullet(Player):
 
         if self.rect.y < 449:
             self.rect.y -= self.y_delta
+
+        if self.rect.y <= -16:
+            reload()
 
         if pygame.sprite.spritecollide(rocket,enemy_sprites_lists,True):
             reload()
@@ -76,33 +79,44 @@ class Enemy(Player):
         self.x = pos_x
         self.y = pos_y
         self.rect.center = [self.x,self.y]    #positions rect relatilve from its center
-        self.delta = 4
-    def update(self):   #enemy movement
-        self.x += self.delta
+        self.delta = 7
+    def update(self):
+        self.x += self.delta   #enemy movement
         if self.x <= 0:
-            self.delta = 4
+            self.delta = 7
             self.y += 20
         elif self.x >= 800:
-            self.delta = -4
+            self.delta = -7
             self.y += 20
         self.rect.center = [self.x,self.y]  #updates position
 
+        individual_enemy = enemy_sprites_lists.sprites()
+
+        if len(enemy_sprites_lists) <= 6:   #ensuring that respawn works properly :) --> replace with a subscription way with sprite() method
+            respawn()
+
+        overlap_tolerance = 30
+
+        #Preventing enemy clumping and overlapping
+        for i in range(len(individual_enemy)):
+            for j in range(len(individual_enemy)):
+                if i != j:
+                    if individual_enemy[i].rect.colliderect(individual_enemy[j].rect):
+                        if abs(individual_enemy[i].rect.right - individual_enemy[j].rect.left) > overlap_tolerance and individual_enemy[i].delta == -7 and individual_enemy[j].delta == 7:
+                            individual_enemy[i].delta *=-1
+                            individual_enemy[j].delta *=-1
+                        if abs(individual_enemy[i].rect.left - individual_enemy[j].rect.right) > overlap_tolerance and individual_enemy[i].delta == 7 and individual_enemy[j].delta == -7:
+                            individual_enemy[i].delta *=-1
+                            individual_enemy[j].delta *=-1
+
+
 #Player image:
 spaceship = Player("BusterGame\dog2.PNG")
-spaceship_speed = 5
+spaceship_speed = 11
 
 #Bullet Immage:
-
-rocket_speed = 4
+rocket_speed = 10
 rocket = Bullet("BusterGame\Bullet.PNG",rocket_speed)
-
-#Enemies:
-hostile = []
-#creatiing muliple instances of Enemy:
-enemy_num = 7
-for enemy in range(enemy_num):
-    new_enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0,150))
-    hostile.append(new_enemy)
 
 #This contains all the games sprites for easy access and updating/manipulation:
 player_sprites_lists = pygame.sprite.Group()
@@ -112,15 +126,18 @@ enemy_sprites_lists = pygame.sprite.Group()
 player_sprites_lists.add(rocket)
 player_sprites_lists.add(spaceship)
 
+#Enemy Spawning:
+def respawn():
+    enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0,150))
+    enemy_sprites_lists.add(enemy)
 
-for i in range(7): #adding the multple instances of Enemy to the sprites group
-    enemy_sprites_lists.add(hostile[i])
+for enemy in range(7):
+    enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0,150))
+    enemy_sprites_lists.add(enemy)
 
 def reload():
     rocket.rect.y = 449
     rocket.rect.x = spaceship.rect.x+16
-
-
 
 #RUNNING THE GAME!__________________________________________________________________
 running = True
@@ -134,6 +151,7 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
     if pressed[pygame.K_RIGHT]:
         spaceship.moveRight(spaceship_speed)
         if rocket.rect.y < 449:
@@ -148,9 +166,6 @@ while running:
             rocket.moveLeft(spaceship_speed)
     if pressed[pygame.K_UP]:
         rocket.launch()
-
-    if rocket.rect.y <= -16:
-        reload()
 
     player_sprites_lists.update()  #game mechanics
     enemy_sprites_lists.update()   #ditto^
