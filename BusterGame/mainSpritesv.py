@@ -1,3 +1,4 @@
+from re import S
 import pygame
 import random
 import math
@@ -16,7 +17,11 @@ screen_width = 800
 screen_height = 700
 screen  = pygame.display.set_mode((screen_width,screen_height))
 last_enemy_shot = pygame.time.get_ticks()
+last_player_shot = pygame.time.get_ticks()
 one_sec = 1000
+quart_sec = 250
+milli_sec = 100
+cool_down = quart_sec
 red = (255,0,0)
 green = (0,255,0)
 
@@ -51,6 +56,9 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
             self.rect.x = 0
         elif self.rect.x >= 736:
             self.rect.x = 736
+        
+        #mask image from rect:    
+        self.mask = pygame.mask.from_surface(self.image)
             
         pygame.draw.rect(screen,red, (self.rect.x, (self.rect.bottom + 10), self.rect.width, 15))
         if self.remaining_health > 0:
@@ -76,11 +84,16 @@ class Bullet(Player):
         self.rect.y = self.launch_point
         
     def update(self):
+        
         if self.rect.x <= 17:
             self.rect.x = 17     #We want the bullet to be afixed to spaceship
         elif self.rect.x >= 751:
             self.rect.x = 751
 
+        if pygame.key.get_pressed()[pygame.K_UP]:
+            if spaceship.score <= 25:
+                self.launch()
+            
         #Moves bullet after launch:
         if self.rect.y < self.launch_point:
             self.rect.y += self.y_delta
@@ -90,16 +103,25 @@ class Bullet(Player):
             self.rect.y += self.y_delta
             if self.rect.y > self.byl:
                 self.kill()
-            elif pygame.sprite.spritecollide(self, player_sprites_lists, False):
+            elif pygame.sprite.spritecollide(self, player_sprites_lists, False, pygame.sprite.collide_mask):
                 spaceship.remaining_health -= 1
                 self.kill()
-            
-        if rocket.rect.y <= rocket.byl:
-            self.reload(spaceship.rect.x+self.centered)
 
-        if pygame.sprite.spritecollide(rocket,enemy_sprites_lists,True):
-            spaceship.score += 1
-            self.reload(spaceship.rect.x+self.centered)
+        if self in player_ammo_lists and self.rect.y == self.launch_point:
+            self.rect.centerx = spaceship.rect.centerx
+            
+        if self in player_ammo_lists:         #Maybe change this implimentation later: still have to figure out ammo limit!
+            if self.rect.y <= self.byl:
+                self.reload(spaceship.rect.centerx)
+
+            if pygame.sprite.spritecollide(self,enemy_sprites_lists,True, pygame.sprite.collide_mask):
+                spaceship.score += 1
+                if len(player_ammo_lists) == 1:
+                    self.reload(spaceship.rect.centerx)
+                else: self.kill()
+            
+            if self.rect.y < self.byl:
+                self.kill()
                 
 #ENEMY SPRITE:
 class Enemy(Player):
@@ -147,6 +169,9 @@ class Enemy(Player):
         if len(enemy_sprites_lists) < 2:   #ensuring that respawn works properly :) --> replace with a subscription way with sprite() method
             enemy_ammo_lists.empty()
             respawn()
+        
+        #mask image from rect:    
+        self.mask = pygame.mask.from_surface(self.image)
         
 
 #How do I get diagonal motion?
@@ -208,15 +233,17 @@ while running:
 
     screen.fill((0,0,0))
     screen.blit(background,(0,0))
-    
-    #eneny shooting:
+
+    #Getting current time in mil seconds:
     current_time = pygame.time.get_ticks()
+
+    #eneny shooting:        #Is there a way to implement this into the class's update method?!...turn this into a function like respawn()?
     if current_time - last_enemy_shot > one_sec and len(enemy_ammo_lists) < 10 and len(enemy_sprites_lists) > 0:
         shooting_enemy = random.choice(enemy_sprites_lists.sprites())
         enemy_missile = Bullet("BusterGame\Bullet.PNG",15,shooting_enemy.rect.y,b1lp,shooting_enemy.area.bottom,shooting_enemy.rect.centerx,shooting_enemy.rect.centery)
         enemy_ammo_lists.add(enemy_missile)
         last_enemy_shot = current_time
-    
+            
     #Keyboard controlling AKA event handling:
     pressed = pygame.key.get_pressed()
     for event in pygame.event.get():
@@ -225,23 +252,24 @@ while running:
 
     if pressed[pygame.K_RIGHT]:
         spaceship.moveRight(spaceship_speed)
-        if rocket.rect.y < bullet_1_launch_p:
-            rocket.moveRight(0)     #uncoupling rocket x-coed from spaceship x-coed after firing
-        else:
-            rocket.moveRight(spaceship_speed)
     if pressed[pygame.K_LEFT]:
         spaceship.moveLeft(spaceship_speed)
-        if rocket.rect.y < bullet_1_launch_p:
-            rocket.moveLeft(0)      #uncoupling rocket x-coed from spaceship x-coed after firing
-        else:
-            rocket.moveLeft(spaceship_speed)
-    if pressed[pygame.K_UP]:
-        rocket.launch()
+        
+    #Player machine gun shooting
+    if pressed[pygame.K_UP]:            #Is there a way to implement this into the class's update method also?!
+        if spaceship.score > 25 and current_time - last_player_shot > cool_down:
+            rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, centered_offset = b1lp, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx)
+            player_ammo_lists.add(rocket)
+            rocket.launch()
+            last_player_shot = current_time
+    
+    if spaceship.score > 40:        #Leveling up gun speed
+        cool_down = milli_sec
         
     display_score(spaceship.score)
     
     #Display Game Over: 
-    if pygame.sprite.spritecollide(spaceship,enemy_sprites_lists, True):
+    if pygame.sprite.spritecollide(spaceship,enemy_sprites_lists, True, pygame.sprite.collide_mask):
         enemy_sprites_lists.empty()
     if len(enemy_sprites_lists) == 0 or spaceship.remaining_health == 0:
         enemy_sprites_lists.empty()
@@ -261,7 +289,6 @@ while running:
     clock.tick(60)  #frame rate
 
 #TO-DOs:
-#Add Pixel Perfect Collisions
 #Properly implemtn Python's OS module
 #Add Player and enemy respawning (depending on advancing mechanic)
 #Add more dynamic, randomized collision animation for enemy other than bouncing off each other (e.g. in "3D" space, i.e. shrinking in size, more pronounced diagonal motion)
@@ -273,4 +300,5 @@ while running:
 #Maybe add some animations to the sprites including explosions and spaceship 3D/dynamic movement
 #Have fun from there...maybe a dynamic bachground!
 #Add ammo limit and pickup mechanism
+#Add stats class!
 #Reimpliment this schema to make Kennel Gate Keeper
