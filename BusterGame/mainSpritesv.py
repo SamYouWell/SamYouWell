@@ -34,6 +34,9 @@ background = pygame.image.load("BusterGame\IMG_0493.PNG")
 
 #OPTIMIZING CODE WITH SPRITES:
 class Player(pygame.sprite.Sprite): #(64x64 pixals)
+    screen = pygame.display.get_surface()
+    area = screen.get_rect()
+    
     def __init__(self,pic_path, pos_x=400,pos_y=480,health = 3):
         super().__init__()
         self.image = pygame.image.load(pic_path)
@@ -42,6 +45,13 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         self.starting_health = health
         self.remaining_health = health
         self.score = 0
+        self.ammo_limit = 1
+        self.add_ammo = 0
+        self.add_health = 0
+        self.time = pygame.time.get_ticks()
+        self.resupply_limit = 1
+        self.ammo_timer = pygame.time.get_ticks()
+        self.med_timer = pygame.time.get_ticks()
         
         #self.rocket_shot = pygame.mixer.sound("BusterGame\lazer.wav")
     def fire(self):
@@ -51,37 +61,100 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         self.rect.x += x_delta
     def moveLeft(self,x_delta):
         self.rect.x -= x_delta
+    
     def update(self):
+        doggy_space()
+        display_ammo(self.ammo_limit)
+
+        now_time = pygame.time.get_ticks()
+        
         if self.rect.x <= 0:
             self.rect.x = 0
         elif self.rect.x >= 736:
             self.rect.x = 736
-        
+            
         #mask image from rect:    
         self.mask = pygame.mask.from_surface(self.image)
+        
+        if spaceship.score % 25 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
+            if len(ammo_sprites) <= self.resupply_limit and self.resupply_limit < 2:
+                resupply(64)
+            elif len(ammo_sprites) >= 2:
+                resupply(32)
+            
+            if spaceship.score % 40 == 0:
+                self.resupply_limit += 1
+            self.ammo_timer = now_time
+            
+        if spaceship.score % 14 == 0 and now_time - self.med_timer > 5000 and spaceship.score != 0:
+            if len(med_packs) <= self.resupply_limit and self.resupply_limit < 2:
+                health(64)
+            elif len(med_packs) >= 2:
+                health(32)
+            self.med_timer = now_time
+        
+        if pygame.sprite.spritecollide(self, ammo_sprites, True):
+            self.ammo_limit += self.add_ammo
+            
+        if pygame.sprite.spritecollide(self, med_packs, True):
+            self.remaining_health = self.add_health
             
         pygame.draw.rect(screen,red, (self.rect.x, (self.rect.bottom + 10), self.rect.width, 15))
         if self.remaining_health > 0:
             pygame.draw.rect(screen,green, (self.rect.x, (self.rect.bottom + 10), int(self.rect.width * (self.remaining_health/self.starting_health)), 15))
+            
+class Supplies(pygame.sprite.Sprite):
+    screen = pygame.display.get_surface()
+    area = screen.get_rect()
+    
+    def __init__(self, pic_path, pos_x, pos_y, drop_rate, scale = 64):
+        super().__init__()
+        self.image = pygame.image.load(pic_path)
+        self.rect = self.image.get_rect()   #fetch the rectangle around image
+        self.rect.center = [pos_x, pos_y]   #position rect relative to center
+        self.size = scale
+        self.image = pygame.transform.scale(self.image, (self.size,self.size))
+        self.drop_rate = drop_rate
         
+    def _size_check(self):
+        if self.size == 64:
+            spaceship.add_ammo = 50
+            spaceship.add_health = spaceship.starting_health
+        elif self.size == 32:
+            spaceship.add_ammo = 25
+            spaceship.add_health = 1
+        
+    def _drop(self):
+        en_pos = self.rect.move((0, self.drop_rate))
+        if not self.area.contains(en_pos):
+            if (self.rect.top >= (self.area.bottom)):
+                self.kill()
+        self.rect = en_pos
+    
+    def update(self):
+        self._size_check()
+        self._drop()
 
 #BULLET SPRITE: (32x32 pixals)
-class Bullet(Player):
-    def __init__(self, pic_path,rocket_speed,launch_point,centered_offset,bullet_y_limit= -16,pos_x=400, pos_y=465):
-        super().__init__(pic_path)
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, pic_path,rocket_speed,launch_point,bullet_y_limit= -16,pos_x=400, pos_y=465):
+        super().__init__()
         self.y_delta = rocket_speed
-        self.rect.center = [pos_x, pos_y]
+        self.image = pygame.image.load(pic_path)
+        self.rect = self.image.get_rect()   #fetch the rectangle around image
+        self.rect.center = [pos_x, pos_y]   #position rect relative to center
         self.launch_point = launch_point
-        self.centered = centered_offset
         self.byl = bullet_y_limit
 
     def launch(self):
-        if self.rect.y == self.launch_point:
+        if self.rect.centery == self.launch_point:
+            spaceship.ammo_limit -= 1
             self.rect.y += self.y_delta
             
     def reload(self, x):
-        self.rect.x = x
-        self.rect.y = self.launch_point
+        spaceship.ammo_limit += 1
+        self.rect.centerx = x
+        self.rect.centery = self.launch_point
         
     def update(self):
         
@@ -89,14 +162,10 @@ class Bullet(Player):
             self.rect.x = 17     #We want the bullet to be afixed to spaceship
         elif self.rect.x >= 751:
             self.rect.x = 751
-
-        if pygame.key.get_pressed()[pygame.K_UP]:
-            if spaceship.score <= 25:
-                self.launch()
             
         #Moves bullet after launch:
-        if self.rect.y < self.launch_point:
-            self.rect.y += self.y_delta
+        if self.rect.centery < self.launch_point:
+            self.rect.centery += self.y_delta
             
         #shooting enemy_missile instance:    
         if self in enemy_ammo_lists:
@@ -106,34 +175,35 @@ class Bullet(Player):
             elif pygame.sprite.spritecollide(self, player_sprites_lists, False, pygame.sprite.collide_mask):
                 spaceship.remaining_health -= 1
                 self.kill()
-
-        if self in player_ammo_lists and self.rect.y == self.launch_point:
-            self.rect.centerx = spaceship.rect.centerx
             
         if self in player_ammo_lists:         #Maybe change this implimentation later: still have to figure out ammo limit!
+            if self.rect.centery == self.launch_point:
+                self.rect.centerx = spaceship.rect.centerx    
+        
             if self.rect.y <= self.byl:
-                self.reload(spaceship.rect.centerx)
+                if spaceship.ammo_limit == 0:
+                    self.reload(spaceship.rect.centerx)
+                else: self.kill()
 
             if pygame.sprite.spritecollide(self,enemy_sprites_lists,True, pygame.sprite.collide_mask):
                 spaceship.score += 1
-                if len(player_ammo_lists) == 1:
+                if spaceship.ammo_limit == 0:
                     self.reload(spaceship.rect.centerx)
                 else: self.kill()
-            
-            if self.rect.y < self.byl:
-                self.kill()
                 
 #ENEMY SPRITE:
-class Enemy(Player):
+class Enemy(pygame.sprite.Sprite):
     delta = 5
     screen = pygame.display.get_surface()
     area = screen.get_rect()
     
     def __init__(self,pic_path,pos_x,pos_y):
-        super().__init__(pic_path)
+        super().__init__()
+        self.image = pygame.image.load(pic_path)
+        self.rect = self.image.get_rect()   #fetch the rectangle around image
+        self.rect.center = [pos_x, pos_y]   #position rect relative to center
         self.individual_enemy = enemy_sprites_lists.sprites()    #call so that it's updated.
         self.overlap_tolerance = 30
-        self.rect.center = [pos_x, pos_y]    #positions rect relatilve from its center
         
     def _clump_prevention(self):
         #Preventing enemy clumping and overlapping
@@ -182,18 +252,22 @@ spaceship = Player("BusterGame\dog2.PNG",health = 7)
 spaceship_speed = 11
 
 #Primary weapon settings:    
-bullet_1_launch_p = 449
-b1lp = 16
+bullet_1_launch_p = spaceship.rect.centery
 
 #Bullet Immage:
 rocket_speed = -10
-rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, centered_offset = b1lp, rocket_speed = rocket_speed)
+rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p,rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
+
+
 
 #This contains all the games sprites for easy access and updating/manipulation:
 player_sprites_lists = pygame.sprite.Group()
 player_ammo_lists = pygame.sprite.Group()
 enemy_sprites_lists = pygame.sprite.Group()
 enemy_ammo_lists = pygame.sprite.Group()
+ammo_sprites = pygame.sprite.Group()
+med_packs = pygame.sprite.Group()
+dust = pygame.sprite.Group()
 
 #Adding sprites to Group:
 player_ammo_lists.add(rocket)
@@ -205,6 +279,10 @@ def display_score(score_value, x=10,y=10):
     score = font.render("Score : " + str(score_value),True, (255,255,255))
     screen.blit(score, (x,y))
 
+def display_ammo(mag_value, x = 650, y = 650):
+    ammo = font.render(str(mag_value) + " Ammo", True, (255, 255, 255))
+    screen.blit(ammo, (x,y))
+
 #Enemy Spawning:
 def respawn():
     enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0, 150))
@@ -213,17 +291,30 @@ def respawn():
             if abs(hostile.rect.x - enemy.rect.x) > 32:   #If it were less than 30, then it would clump more.
                 enemy_sprites_lists.add(enemy)
                 break
-        enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0,150))
+        enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(-150,150))
 
 for enemy in range(7):
     enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0,150))
     enemy_sprites_lists.add(enemy)
+    
+def resupply(size):
+    ammo_supply = Supplies("BusterGame\Bullet.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), drop_rate = 3, scale=size)
+    ammo_sprites.add(ammo_supply)
+    
+def health(size):
+    med_pack = Supplies("BusterGame\dog2.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), drop_rate = 3,scale=size)
+    med_packs.add(med_pack)
+    
+def doggy_space():
+    particles = Supplies("BusterGame\pawprint.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), drop_rate = 4)
+    dust.add(particles)
     
 #GAME OVER!    
 game_over_font = pygame.font.Font('freesansbold.ttf',75)
 def game_over_text():
     game_over_text = game_over_font.render("GAME OVER", True, (255,255,255))
     screen.blit(game_over_text,(200,250))
+
 
 
 
@@ -240,7 +331,7 @@ while running:
     #eneny shooting:        #Is there a way to implement this into the class's update method?!...turn this into a function like respawn()?
     if current_time - last_enemy_shot > one_sec and len(enemy_ammo_lists) < 10 and len(enemy_sprites_lists) > 0:
         shooting_enemy = random.choice(enemy_sprites_lists.sprites())
-        enemy_missile = Bullet("BusterGame\Bullet.PNG",15,shooting_enemy.rect.y,b1lp,shooting_enemy.area.bottom,shooting_enemy.rect.centerx,shooting_enemy.rect.centery)
+        enemy_missile = Bullet("BusterGame\Bullet.PNG",15, shooting_enemy.rect.y,shooting_enemy.area.bottom,shooting_enemy.rect.centerx,shooting_enemy.rect.centery)
         enemy_ammo_lists.add(enemy_missile)
         last_enemy_shot = current_time
             
@@ -257,16 +348,17 @@ while running:
         
     #Player machine gun shooting
     if pressed[pygame.K_UP]:            #Is there a way to implement this into the class's update method also?!
-        if spaceship.score > 25 and current_time - last_player_shot > cool_down:
-            rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, centered_offset = b1lp, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx)
-            player_ammo_lists.add(rocket)
+        if spaceship.score <= 25:     #Interesting fact: the player_ammo_list is always equal to 1 before rocket is fired!
             rocket.launch()
+        elif spaceship.score > 25 and current_time - last_player_shot > cool_down and spaceship.ammo_limit > 0:
+            mac_bullets = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx)
+            player_ammo_lists.add(mac_bullets)
+            #mac_bullets.launch()       #The launch() call is meaningless...do I need to fix this if it still works?
             last_player_shot = current_time
+            spaceship.ammo_limit -= 1   #^^^ which is why we need this redundant bit...?!
     
     if spaceship.score > 40:        #Leveling up gun speed
         cool_down = milli_sec
-        
-    display_score(spaceship.score)
     
     #Display Game Over: 
     if pygame.sprite.spritecollide(spaceship,enemy_sprites_lists, True, pygame.sprite.collide_mask):
@@ -277,19 +369,28 @@ while running:
         player_ammo_lists.empty()
         game_over_text()
     
-    player_sprites_lists.update()  #game mechanics
     player_ammo_lists.update()
     enemy_ammo_lists.update()
     enemy_sprites_lists.update()   #ditto^
+    ammo_sprites.update()
+    med_packs.update()
+    dust.update()
     player_ammo_lists.draw(screen)
-    player_sprites_lists.draw(screen)  #drawing all sprites on screen surface
+    ammo_sprites.draw(screen)
+    dust.draw(screen)
+    player_sprites_lists.update()  #placed here to avoid being drawn over.
+    med_packs.draw(screen)
     enemy_ammo_lists.draw(screen)
+    player_sprites_lists.draw(screen)  #drawing all sprites on screen surface
     enemy_sprites_lists.draw(screen)
+    display_score(spaceship.score)
     pygame.display.flip()   #another way to refresh screen sort of like pygame.display.update()
     clock.tick(60)  #frame rate
 
 #TO-DOs:
+#Make each class inherit form sprite class directly!...it optimizes performance apparently
 #Properly implemtn Python's OS module
+#Clean up unnecessary variables
 #Add Player and enemy respawning (depending on advancing mechanic)
 #Add more dynamic, randomized collision animation for enemy other than bouncing off each other (e.g. in "3D" space, i.e. shrinking in size, more pronounced diagonal motion)
 #Replace artwork
