@@ -77,7 +77,7 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         #mask image from rect:    
         self.mask = pygame.mask.from_surface(self.image)
         
-        if spaceship.score % 25 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
+        if spaceship.score % 7 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
             if len(ammo_sprites) <= self.resupply_limit and self.resupply_limit < 2:
                 resupply(64)
             elif len(ammo_sprites) >= 2:
@@ -99,12 +99,13 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
             self.mag += self.add_ammo
         if self.ammo_limit == 0:
             self.mag = 1
+            self.add_ammo = 0
             
         if pygame.sprite.spritecollide(self, med_packs, True):
             self.remaining_health = self.add_health
             
         pygame.draw.rect(screen,red, (self.area.x, (self.area.bottom - 5), self.area.width, 4))
-        if self.ammo_limit > 0:
+        if self.ammo_limit >= 0:
             pygame.draw.rect(screen,green, (self.area.x, (self.area.bottom - 5), int(self.area.width * (self.ammo_limit/self.mag)), 4))
             
         pygame.draw.rect(screen,red, (self.rect.x, (self.rect.bottom + 10), self.rect.width, 10))
@@ -157,26 +158,12 @@ class Bullet(pygame.sprite.Sprite):
 
     def launch(self):
         if self.rect.centery == self.launch_point:
-            spaceship.ammo_limit -= 1
             self.rect.y += self.y_delta
-            
-    def reload(self, x):
-        spaceship.ammo_limit += 1
-        self.rect.centerx = x
-        self.rect.centery = self.launch_point
+            if self in simple_blaster_bullet:
+                spaceship.ammo_limit = 0
+            else: spaceship.ammo_limit -= 1
         
     def update(self):
-        now_time = pygame.time.get_ticks()
-        
-        if self.rect.x <= 17:
-            self.rect.x = 17     #We want the bullet to be afixed to spaceship
-        elif self.rect.x >= 751:
-            self.rect.x = 751
-            
-        #Moves bullet after launch:
-        if self.rect.centery < self.launch_point:
-            self.rect.centery += self.y_delta
-            
         #shooting enemy_missile instance:    
         if self in enemy_ammo_lists:
             self.rect.y += self.y_delta
@@ -185,22 +172,17 @@ class Bullet(pygame.sprite.Sprite):
             elif pygame.sprite.spritecollide(self, player_sprites_lists, False, pygame.sprite.collide_mask):
                 spaceship.remaining_health -= 1
                 self.kill()
-                 
-        #Simple Blaster mechanics:
-        if self in simple_blaster_bullet:
-            if self.rect.centery == self.launch_point:
-                self.rect.centerx = spaceship.rect.centerx    
-
-            if self.rect.y <= self.byl:             #Try to find a way without the reload() method.
-                self.reload(spaceship.rect.centerx)
-                    
-            if pygame.sprite.spritecollide(self,enemy_sprites_lists,True, pygame.sprite.collide_mask):
-                spaceship.score += 1
-                self.reload(spaceship.rect.centerx)
-
-        #Rapid Fire mechanics:    
-        if self in player_ammo_lists:         #Maybe change this implimentation later: still have to figure out ammo limit!
-            if self.rect.centery == self.launch_point:
+        
+        if self.rect.x <= 17:
+            self.rect.x = 17     #We want the bullet to be afixed to spaceship
+        elif self.rect.x >= 751:
+            self.rect.x = 751
+            
+        #Moves bullet after launch or afix to spaceship:
+        if self in simple_blaster_bullet or self in player_ammo_lists:          #It MIGHT be beatter to have these within thier own class and update method, but this works just fine.
+            if self.rect.centery < self.launch_point:
+                self.rect.centery += self.y_delta
+            elif self.rect.centery == self.launch_point:
                 self.rect.centerx = spaceship.rect.centerx    
 
             if self.rect.y <= self.byl:
@@ -275,7 +257,6 @@ bullet_1_launch_p = spaceship.rect.centery
 
 #Bullet Immage:
 rocket_speed = -10
-rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p,rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
 
 
 
@@ -290,7 +271,6 @@ dust = pygame.sprite.Group()
 simple_blaster_bullet = pygame.sprite.Group()
 
 #Adding sprites to Group:
-simple_blaster_bullet.add(rocket)
 player_sprites_lists.add(spaceship)
 
 #Displaying score:
@@ -299,14 +279,14 @@ def display_score(score_value, x=10,y=10):
     score = font.render("Score : " + str(score_value),True, (255,255,255))
     screen.blit(score, (x,y))
 
-def display_ammo(mag_value, x = 500, y = 650):
-    if spaceship.ammo_limit == 1 or spaceship.ammo_limit == 0 and len(player_ammo_lists) == 0:
+def display_ammo(mag_value, x = 500, y = 650):                      #The simple blaster does not need to update our use the ammo_limit attribute b/c it's a limitless blaster
+    if spaceship.ammo_limit <= 1 and len(simple_blaster_bullet) <= 1:
         ammo = font.render("Simple Blaster", True, (255, 255, 255))
         screen.blit(ammo, (x,y))
-    elif spaceship.ammo_limit >= 2:
+    elif spaceship.ammo_limit >= 1 and spaceship.add_ammo >= 0:
         ammo = font.render("Rapid Fire: " + str(mag_value), True, (255, 255, 255))
         screen.blit(ammo, (x,y))
-
+        
 #Enemy Spawning:
 def respawn():
     enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0, 150))
@@ -372,10 +352,12 @@ while running:
         
     #Player machine gun shooting
     if pressed[pygame.K_UP]:            #Is there a way to implement this into the class's update method also?!
-        if spaceship.score <= 25 and current_time - last_player_shot > one_sec or spaceship.ammo_limit <= 1 and current_time - last_player_shot > one_sec:
+        if spaceship.score <= 7 and current_time - last_player_shot > one_sec or spaceship.ammo_limit <= 1 and current_time - last_player_shot > one_sec:
+            rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p,rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
+            simple_blaster_bullet.add(rocket)
             rocket.launch()
             last_player_shot = current_time
-        elif spaceship.score > 25 and current_time - last_player_shot > cool_down and spaceship.ammo_limit > 1:
+        elif spaceship.score >= 7 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 2:
             mac_bullets = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             player_ammo_lists.add(mac_bullets)
             mac_bullets.launch()
