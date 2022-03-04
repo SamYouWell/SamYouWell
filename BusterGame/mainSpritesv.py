@@ -2,7 +2,6 @@ from ast import Pass
 from re import S
 import pygame
 import random
-import math
 from pygame import mixer
 
 #READ ME -- This "mainSprites.py" file will eventually be the "main" file for a classic Space Invaders game.
@@ -26,6 +25,7 @@ cool_down = quart_sec
 red = (255,0,0)
 green = (0,255,0)
 yellow = (255,255,0)
+light_blue_white = (204, 255, 255)
 
 #Creaing Title: images are just place holders for now! I'm gonna make my own images.
 pygame.display.set_caption("Sprites Invader")
@@ -60,9 +60,6 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         self.full = 10
         
         #self.rocket_shot = pygame.mixer.sound("BusterGame\lazer.wav")
-    def fire(self):
-        #self.rocket_shot.play()
-        pass
     def moveRight(self,x_delta):
         self.rect.x += x_delta
     def moveLeft(self,x_delta):
@@ -82,7 +79,8 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         #mask image from rect:    
         self.mask = pygame.mask.from_surface(self.image)
         
-        if spaceship.score % 7 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
+        #Drop supllies like bullets:
+        if spaceship.score % 25 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
             if len(ammo_sprites) <= self.resupply_limit and self.resupply_limit < 2:
                 resupply(64)
             elif len(ammo_sprites) >= 2:
@@ -91,7 +89,8 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
             if spaceship.score % 40 == 0:
                 self.resupply_limit += 1
             self.ammo_timer = now_time
-            
+        
+        #Drop med packs or soon coming spaceshiop upgrades.    
         if spaceship.score % 14 == 0 and now_time - self.med_timer > 5000 and spaceship.score != 0:
             if len(med_packs) <= self.resupply_limit and self.resupply_limit < 2:
                 health(64)
@@ -101,7 +100,7 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         
         if pygame.sprite.spritecollide(self, ammo_sprites, True):
             self.ammo_limit += self.add_ammo
-            self.mag += self.add_ammo
+            self.mag = self.ammo_limit
             self.rapid_fire = True
         if self.ammo_limit < 1:
             self.mag = 1
@@ -285,16 +284,17 @@ player_sprites_lists.add(spaceship)
 
 #Displaying score:
 font = pygame.font.Font('freesansbold.ttf', 32)
+weapon_font = pygame.font.Font('freesansbold.ttf', 22)
 def display_score(score_value, x=10,y=10):
     score = font.render("Score : " + str(score_value),True, (255,255,255))
     screen.blit(score, (x,y))
 
 def display_ammo(mag_value, x = 500, y = 650):                      #The simple blaster does not need to update our use the ammo_limit attribute b/c it's a limitless blaster
     if spaceship.ammo_limit <= 1 and len(simple_blaster_bullet) <= 1 and spaceship.rapid_fire == False:     #One has to explicitly state the rapid_fire attribute in both conditions b/c of the linear order of checking!
-        ammo = font.render("Simple Blaster", True, (255, 255, 255))
-        screen.blit(ammo, (x,y))
+        ammo = weapon_font.render("Simple Blaster", True, light_blue_white)
+        screen.blit(ammo, (600,y))
     elif spaceship.rapid_fire == True:
-        ammo = font.render("Rapid Fire: " + str(mag_value), True, (255, 255, 255))
+        ammo = weapon_font.render("Rapid Fire: " + str(mag_value), True, light_blue_white)
         screen.blit(ammo, (x,y))
         
 #Enemy Spawning:
@@ -362,13 +362,13 @@ while running:
         
     #Player machine gun shooting
     if pressed[pygame.K_UP]:            #Is there a way to implement this into the class's update method also?!
-        if spaceship.score <= 7 and current_time - last_player_shot > one_sec or spaceship.add_ammo == 0 and current_time - last_player_shot > one_sec:
+        if spaceship.score <= 25 and current_time - last_player_shot > one_sec or spaceship.add_ammo == 0 and current_time - last_player_shot > one_sec:
             rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p,rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             simple_blaster_bullet.add(rocket)
             rocket.launch()
             spaceship.simple_blaster_recharge = 0
             last_player_shot = current_time
-        elif spaceship.score >= 7 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 1:
+        elif spaceship.score >= 25 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 1:
             mac_bullets = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             player_ammo_lists.add(mac_bullets)
             mac_bullets.launch()
