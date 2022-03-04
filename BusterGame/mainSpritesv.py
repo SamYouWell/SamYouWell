@@ -1,3 +1,4 @@
+from ast import Pass
 from re import S
 import pygame
 import random
@@ -24,6 +25,7 @@ milli_sec = 100
 cool_down = quart_sec
 red = (255,0,0)
 green = (0,255,0)
+yellow = (255,255,0)
 
 #Creaing Title: images are just place holders for now! I'm gonna make my own images.
 pygame.display.set_caption("Sprites Invader")
@@ -53,6 +55,9 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         self.resupply_limit = 1
         self.ammo_timer = pygame.time.get_ticks()
         self.med_timer = pygame.time.get_ticks()
+        self.rapid_fire = False
+        self.simple_blaster_recharge = 10
+        self.full = 10
         
         #self.rocket_shot = pygame.mixer.sound("BusterGame\lazer.wav")
     def fire(self):
@@ -97,16 +102,21 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         if pygame.sprite.spritecollide(self, ammo_sprites, True):
             self.ammo_limit += self.add_ammo
             self.mag += self.add_ammo
-        if self.ammo_limit == 0:
+            self.rapid_fire = True
+        if self.ammo_limit < 1:
             self.mag = 1
             self.add_ammo = 0
+            self.rapid_fire = False
             
         if pygame.sprite.spritecollide(self, med_packs, True):
             self.remaining_health = self.add_health
             
         pygame.draw.rect(screen,red, (self.area.x, (self.area.bottom - 5), self.area.width, 4))
-        if self.ammo_limit >= 0:
+        if self.rapid_fire == True:
             pygame.draw.rect(screen,green, (self.area.x, (self.area.bottom - 5), int(self.area.width * (self.ammo_limit/self.mag)), 4))
+            self.simple_blaster_recharge = 0
+        elif self.rapid_fire == False:
+            pygame.draw.rect(screen,yellow, (self.area.x, (self.area.bottom - 5), int(self.area.width * (self.simple_blaster_recharge/self.full)), 4))
             
         pygame.draw.rect(screen,red, (self.rect.x, (self.rect.bottom + 10), self.rect.width, 10))
         if self.remaining_health > 0:
@@ -280,10 +290,10 @@ def display_score(score_value, x=10,y=10):
     screen.blit(score, (x,y))
 
 def display_ammo(mag_value, x = 500, y = 650):                      #The simple blaster does not need to update our use the ammo_limit attribute b/c it's a limitless blaster
-    if spaceship.ammo_limit <= 1 and len(simple_blaster_bullet) <= 1:
+    if spaceship.ammo_limit <= 1 and len(simple_blaster_bullet) <= 1 and spaceship.rapid_fire == False:     #One has to explicitly state the rapid_fire attribute in both conditions b/c of the linear order of checking!
         ammo = font.render("Simple Blaster", True, (255, 255, 255))
         screen.blit(ammo, (x,y))
-    elif spaceship.ammo_limit >= 1 and spaceship.add_ammo >= 0:
+    elif spaceship.rapid_fire == True:
         ammo = font.render("Rapid Fire: " + str(mag_value), True, (255, 255, 255))
         screen.blit(ammo, (x,y))
         
@@ -352,16 +362,24 @@ while running:
         
     #Player machine gun shooting
     if pressed[pygame.K_UP]:            #Is there a way to implement this into the class's update method also?!
-        if spaceship.score <= 7 and current_time - last_player_shot > one_sec or spaceship.ammo_limit <= 1 and current_time - last_player_shot > one_sec:
+        if spaceship.score <= 7 and current_time - last_player_shot > one_sec or spaceship.add_ammo == 0 and current_time - last_player_shot > one_sec:
             rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p,rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             simple_blaster_bullet.add(rocket)
             rocket.launch()
+            spaceship.simple_blaster_recharge = 0
             last_player_shot = current_time
-        elif spaceship.score >= 7 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 2:
+        elif spaceship.score >= 7 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 1:
             mac_bullets = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             player_ammo_lists.add(mac_bullets)
             mac_bullets.launch()
             last_player_shot = current_time
+            
+    if spaceship.simple_blaster_recharge < 10:
+        if current_time - last_player_shot > milli_sec:
+            spaceship.simple_blaster_recharge += 1
+    elif spaceship.simple_blaster_recharge == 10:
+        #Make ready and loaded sound!
+        pass
     
     if spaceship.score > 40:        #Leveling up gun speed
         cool_down = milli_sec
