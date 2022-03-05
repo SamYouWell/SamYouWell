@@ -39,7 +39,7 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
     screen = pygame.display.get_surface()
     area = screen.get_rect()
     
-    def __init__(self,pic_path, pos_x=400,pos_y=480,health = 3):
+    def __init__(self,pic_path, pos_x=400,pos_y=480,health = 7):
         super().__init__()
         self.image = pygame.image.load(pic_path)
         self.rect = self.image.get_rect()   #fetch the rectangle around image
@@ -81,11 +81,10 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         
         #Drop supllies like bullets:
         if spaceship.score % 25 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
-            if len(ammo_sprites) <= self.resupply_limit and self.resupply_limit < 2:
-                resupply(64)
+            if len(ammo_sprites) <= self.resupply_limit and self.resupply_limit <= 7:
+                resupply(64,50)
             elif len(ammo_sprites) >= 2:
-                resupply(32)
-            
+                resupply(32,25)
             if spaceship.score % 40 == 0:
                 self.resupply_limit += 1
             self.ammo_timer = now_time
@@ -93,11 +92,12 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         #Drop med packs or soon coming spaceshiop upgrades.    
         if spaceship.score % 14 == 0 and now_time - self.med_timer > 5000 and spaceship.score != 0:
             if len(med_packs) <= self.resupply_limit and self.resupply_limit < 2:
-                health(64)
+                health(64,"--100%")
             elif len(med_packs) >= 2:
-                health(32)
+                health(32,"+14%")
             self.med_timer = now_time
         
+        #How picking up ammo for machine gun works:
         if pygame.sprite.spritecollide(self, ammo_sprites, True):
             self.ammo_limit += self.add_ammo
             self.mag = self.ammo_limit
@@ -106,14 +106,15 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
             self.mag = 1
             self.add_ammo = 0
             self.rapid_fire = False
-            
+        
+        #How picking up health works:    
         if pygame.sprite.spritecollide(self, med_packs, True):
-            self.remaining_health = self.add_health
+            self.remaining_health += self.add_health
             
         pygame.draw.rect(screen,red, (self.area.x, (self.area.bottom - 5), self.area.width, 4))
         if self.rapid_fire == True:
             pygame.draw.rect(screen,green, (self.area.x, (self.area.bottom - 5), int(self.area.width * (self.ammo_limit/self.mag)), 4))
-            self.simple_blaster_recharge = 0
+            self.simple_blaster_recharge = 0        #Prevents Simple_blaster animation fron showing
         elif self.rapid_fire == False:
             pygame.draw.rect(screen,yellow, (self.area.x, (self.area.bottom - 5), int(self.area.width * (self.simple_blaster_recharge/self.full)), 4))
             
@@ -125,7 +126,7 @@ class Supplies(pygame.sprite.Sprite):
     screen = pygame.display.get_surface()
     area = screen.get_rect()
     
-    def __init__(self, pic_path, pos_x, pos_y, drop_rate, scale = 64):
+    def __init__(self, pic_path, pos_x, pos_y, supply: str, drop_rate, scale = 64):
         super().__init__()
         self.image = pygame.image.load(pic_path)
         self.rect = self.image.get_rect()   #fetch the rectangle around image
@@ -133,11 +134,13 @@ class Supplies(pygame.sprite.Sprite):
         self.size = scale
         self.image = pygame.transform.scale(self.image, (self.size,self.size))
         self.drop_rate = drop_rate
+        self.supply = supply
+        self.label = pygame.font.Font("freesansbold.ttf", 20).render(self.supply,True,light_blue_white)       #text_surface_obj
         
     def _size_check(self):
         if self.size == 64:
             spaceship.add_ammo = 50
-            spaceship.add_health = spaceship.starting_health
+            spaceship.add_health = (7 - spaceship.remaining_health)       #7 is the full health amount...change number into a variable later
         elif self.size == 32:
             spaceship.add_ammo = 25
             spaceship.add_health = 1
@@ -152,6 +155,8 @@ class Supplies(pygame.sprite.Sprite):
     def update(self):
         self._size_check()
         self._drop()
+
+        screen.blit(self.label, (self.rect.centerx+30,self.rect.centery))
 
 #BULLET SPRITE: (32x32 pixals)
 class Bullet(pygame.sprite.Sprite):
@@ -311,16 +316,16 @@ for enemy in range(7):
     enemy = Enemy("BusterGame\dog2.PNG",random.randrange(0, screen_width),random.randrange(0,150))
     enemy_sprites_lists.add(enemy)
     
-def resupply(size):
-    ammo_supply = Supplies("BusterGame\Bullet.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), drop_rate = 3, scale=size)
+def resupply(size, supply_amount):
+    ammo_supply = Supplies("BusterGame\Bullet.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(100, 200), supply = f"+{supply_amount}", drop_rate = 3, scale=size)
     ammo_sprites.add(ammo_supply)
     
-def health(size):
-    med_pack = Supplies("BusterGame\dog2.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), drop_rate = 3,scale=size)
+def health(size, supply_amount):
+    med_pack = Supplies("BusterGame\dog2.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(100, 200), supply = supply_amount, drop_rate = 3,scale=size)
     med_packs.add(med_pack)
     
 def doggy_space():
-    particles = Supplies("BusterGame\pawprint.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), drop_rate = 4)
+    particles = Supplies("BusterGame\pawprint.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), supply = "", drop_rate = 4)
     dust.add(particles)
     
 #GAME OVER!    
@@ -362,18 +367,19 @@ while running:
         
     #Player machine gun shooting
     if pressed[pygame.K_UP]:            #Is there a way to implement this into the class's update method also?!
-        if spaceship.score <= 25 and current_time - last_player_shot > one_sec or spaceship.add_ammo == 0 and current_time - last_player_shot > one_sec:
+        if spaceship.score < 25 and current_time - last_player_shot > one_sec or spaceship.add_ammo == 0 and current_time - last_player_shot > one_sec and spaceship.rapid_fire == False:
             rocket = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p,rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             simple_blaster_bullet.add(rocket)
             rocket.launch()
             spaceship.simple_blaster_recharge = 0
             last_player_shot = current_time
-        elif spaceship.score >= 25 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 1:
+        elif spaceship.score >= 25 and current_time - last_player_shot > cool_down and spaceship.ammo_limit >= 1 and spaceship.rapid_fire == True:
             mac_bullets = Bullet("BusterGame\Bullet.PNG",launch_point = bullet_1_launch_p, rocket_speed = rocket_speed, pos_x = spaceship.rect.centerx, pos_y = spaceship.rect.centery)
             player_ammo_lists.add(mac_bullets)
             mac_bullets.launch()
             last_player_shot = current_time
-            
+    
+    #Simple_blaster recharging animation:        
     if spaceship.simple_blaster_recharge < 10:
         if current_time - last_player_shot > milli_sec:
             spaceship.simple_blaster_recharge += 1
@@ -414,6 +420,7 @@ while running:
     clock.tick(60)  #frame rate
 
 #TO-DOs:
+#Find a way to blit the labels above the dust.
 #Make each class inherit form sprite class directly!...it optimizes performance apparently
 #Properly implemtn Python's OS module
 #Clean up unnecessary variables
@@ -428,4 +435,5 @@ while running:
 #Have fun from there...maybe a dynamic bachground!
 #Add ammo limit and pickup mechanism
 #Add stats class!
+#Add a stats keeping mechanism that involves the file manager.
 #Reimpliment this schema to make Kennel Gate Keeper
