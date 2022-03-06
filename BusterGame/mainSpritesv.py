@@ -68,6 +68,15 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
     def update(self):
         doggy_space()
         display_ammo(self.ammo_limit)
+        
+        ammo_list = ammo_sprites.sprites()
+        med_list = med_packs.sprites()
+        
+        for i in ammo_list:
+            screen.blit(i.label, (i.rect.centerx+30,i.rect.centery))
+            
+        for i in med_list:
+            screen.blit(i.label, (i.rect.centerx+30,i.rect.centery))
 
         now_time = pygame.time.get_ticks()
         
@@ -155,8 +164,6 @@ class Supplies(pygame.sprite.Sprite):
     def update(self):
         self._size_check()
         self._drop()
-
-        screen.blit(self.label, (self.rect.centerx+30,self.rect.centery))
 
 #BULLET SPRITE: (32x32 pixals)
 class Bullet(pygame.sprite.Sprite):
@@ -317,11 +324,11 @@ for enemy in range(7):
     enemy_sprites_lists.add(enemy)
     
 def resupply(size, supply_amount):
-    ammo_supply = Supplies("BusterGame\Bullet.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(100, 200), supply = f"+{supply_amount}", drop_rate = 3, scale=size)
+    ammo_supply = Supplies("BusterGame\Bullet.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), supply = f"+{supply_amount}", drop_rate = 3, scale=size)
     ammo_sprites.add(ammo_supply)
     
 def health(size, supply_amount):
-    med_pack = Supplies("BusterGame\dog2.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(100, 200), supply = supply_amount, drop_rate = 3,scale=size)
+    med_pack = Supplies("BusterGame\dog2.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), supply = supply_amount, drop_rate = 3,scale=size)
     med_packs.add(med_pack)
     
 def doggy_space():
