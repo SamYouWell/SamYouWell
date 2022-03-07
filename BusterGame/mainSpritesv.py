@@ -26,6 +26,7 @@ red = (255,0,0)
 green = (0,255,0)
 yellow = (255,255,0)
 light_blue_white = (204, 255, 255)
+dark_gray = (128,128,128)
 
 #Creaing Title: images are just place holders for now! I'm gonna make my own images.
 pygame.display.set_caption("Sprites Invader")
@@ -46,8 +47,8 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         self.rect.center = [pos_x, pos_y]   #position rect relative to center
         self.starting_health = health
         self.remaining_health = health
-        self.score = 0
-        self.ammo_limit = 1
+        self.score = 100
+        self.ammo_limit = 0
         self.add_ammo = 0
         self.mag = 1
         self.add_health = 0
@@ -90,19 +91,20 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         
         #Drop supllies like bullets:
         if spaceship.score % 25 == 0 and now_time - self.ammo_timer > 5000 and spaceship.score != 0 or now_time - self.ammo_timer > 15000 and spaceship.score > 25:
-            if len(ammo_sprites) <= self.resupply_limit and self.resupply_limit <= 7:
+            if spaceship.score < 100 and self.resupply_limit < 2:
                 resupply(64,50)
-            elif len(ammo_sprites) >= 2:
-                resupply(32,25)
+            elif spaceship.score >= 100:
+                resupply(32,25)\
+                
             if spaceship.score % 40 == 0:
                 self.resupply_limit += 1
             self.ammo_timer = now_time
         
         #Drop med packs or soon coming spaceshiop upgrades.    
         if spaceship.score % 14 == 0 and now_time - self.med_timer > 5000 and spaceship.score != 0:
-            if len(med_packs) <= self.resupply_limit and self.resupply_limit < 2:
+            if spaceship.score < 100 and self.resupply_limit <= 2:
                 health(64,"--100%")
-            elif len(med_packs) >= 2:
+            elif spaceship.score >= 100:
                 health(32,"+14%")
             self.med_timer = now_time
         
@@ -135,7 +137,7 @@ class Supplies(pygame.sprite.Sprite):
     screen = pygame.display.get_surface()
     area = screen.get_rect()
     
-    def __init__(self, pic_path, pos_x, pos_y, supply: str, drop_rate, scale = 64):
+    def __init__(self, pic_path, pos_x, pos_y, supply: str, drop_rate, scale):
         super().__init__()
         self.image = pygame.image.load(pic_path)
         self.rect = self.image.get_rect()   #fetch the rectangle around image
@@ -147,12 +149,16 @@ class Supplies(pygame.sprite.Sprite):
         self.label = pygame.font.Font("freesansbold.ttf", 20).render(self.supply,True,light_blue_white)       #text_surface_obj
         
     def _size_check(self):
-        if self.size == 64:
-            spaceship.add_ammo = 50
-            spaceship.add_health = (7 - spaceship.remaining_health)       #7 is the full health amount...change number into a variable later
-        elif self.size == 32:
-            spaceship.add_ammo = 25
-            spaceship.add_health = 1
+        if self in ammo_sprites:
+            if self.size == 64:
+                spaceship.add_ammo = 50
+            elif self.size == 32:
+                spaceship.add_ammo = 25
+        if self in med_packs:
+            if self.size == 64:
+                spaceship.add_health = (7 - spaceship.remaining_health)       #7 is the full health amount...change number into a variable later
+            elif self.size == 32:
+                spaceship.add_health = 1
         
     def _drop(self):
         en_pos = self.rect.move((0, self.drop_rate))
@@ -332,8 +338,10 @@ def health(size, supply_amount):
     med_packs.add(med_pack)
     
 def doggy_space():
-    particles = Supplies("BusterGame\pawprint.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), supply = "", drop_rate = 4)
-    dust.add(particles)
+    black_particles = Supplies("BusterGame\pawprint.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), supply = "", drop_rate = 4, scale = 32)
+    dust.add(black_particles)
+    gray_particles = Supplies("BusterGame\paws_gray.PNG", pos_x = random.randrange(0, screen_width), pos_y = random.randrange(-50, 0), supply = "", drop_rate = 4, scale = 8)
+    dust.add(gray_particles)
     
 #GAME OVER!    
 game_over_font = pygame.font.Font('freesansbold.ttf',75)
@@ -416,9 +424,9 @@ while running:
     player_ammo_lists.draw(screen)
     simple_blaster_bullet.draw(screen)
     ammo_sprites.draw(screen)
+    med_packs.draw(screen)
     dust.draw(screen)
     player_sprites_lists.update()  #placed here to avoid being drawn over.
-    med_packs.draw(screen)
     enemy_ammo_lists.draw(screen)
     player_sprites_lists.draw(screen)  #drawing all sprites on screen surface
     enemy_sprites_lists.draw(screen)
@@ -427,8 +435,6 @@ while running:
     clock.tick(60)  #frame rate
 
 #TO-DOs:
-#Find a way to blit the labels above the dust.
-#Make each class inherit form sprite class directly!...it optimizes performance apparently
 #Properly implemtn Python's OS module
 #Clean up unnecessary variables
 #Add Player and enemy respawning (depending on advancing mechanic)
