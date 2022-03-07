@@ -47,7 +47,7 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
         self.rect.center = [pos_x, pos_y]   #position rect relative to center
         self.starting_health = health
         self.remaining_health = health
-        self.score = 100
+        self.score = 0
         self.ammo_limit = 0
         self.add_ammo = 0
         self.mag = 1
@@ -94,7 +94,7 @@ class Player(pygame.sprite.Sprite): #(64x64 pixals)
             if spaceship.score < 100 and self.resupply_limit < 2:
                 resupply(64,50)
             elif spaceship.score >= 100:
-                resupply(32,25)\
+                resupply(32,25)
                 
             if spaceship.score % 40 == 0:
                 self.resupply_limit += 1
